@@ -6,12 +6,14 @@ from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.checkbox import CheckBox
 from kivy.storage.jsonstore import JsonStore
+from kivy.config import Config
 from random import shuffle
+import json
 import datetime
 import random
 import copy
 from enum import Enum
-from kivy.properties import DictProperty, NumericProperty, ListProperty
+from kivy.properties import DictProperty, NumericProperty, ListProperty, StringProperty
 
 Builder.load_string("""
 <ScreenManagement>:
@@ -106,19 +108,43 @@ Builder.load_string("""
             pos_hint: {'center_x': .5, 'center_y': .5}
             size_hint: 1, .1 
             halign: 'center'
+        Image:
+            source: "./Images/Новосиб.jpeg"
+            pos_hint: {'center_x': .5, 'center_y': 0.8}
+            size_hint: 1, 1
+        
+        Button:
+            text: 'На главную'
+            on_press: root.to_main() 
+            pos_hint: {'center_x': .5, 'center_y': .1}
+            size_hint: 1,.1
 
 <SavedResults>:
-    name: "saved screen"
     canvas.before:
         Color:
             rgba: 1,1,1,1
         Rectangle:
             pos: self.pos
-            size: self.size
+            size: self.size[0] * 100, self.size[1] * 100
+
+    Label:
+        id: prevRes
+        color: 0,0,0,1
+        text: root.results
+        text_size: root.width, root.height        
+        valign: 'top'
+        halign: 'center'
+
+    Button:
+        text: 'Назад'
+        on_press: root.back() 
+        pos_hint: {'center_x': .5, 'center_y': .1}
+        size_hint: 1,.1
+        
 """)
 
-store = JsonStore("storage")
 
+storageName = "st"
 qTag = 'question'
 vTag = 'variants'
 aTag = 'answer'
@@ -133,7 +159,7 @@ questions = [
     {qTag: 'Как называется уникальное животное,\nпредставленное в Новосибирском зоопарке?', vTag: ['Лигр', 'Барсук', 'Капибара'], aTag: 0, iTag: './Images/Зоо.jpg'},
     {qTag: 'Как называется самая большая река города?', vTag: ['Иня', 'Обь', 'Тула'], aTag: 1, iTag: './Images/Река.jpg'},
     {qTag: 'На сколько каждый день увеличивается\nнаселение города за счёт маятниковой миграции?', vTag: ['100 чел', '200 чел', '1000 чел'], aTag: 1, iTag: './Images/Миграция.jpg'},
-    {qTag: 'Какой мост города имеет самый большой\n арочный пролёт?', vTag: ['Комсомольский', 'Метромост', 'Бугринский'], aTag: 2, iTag: './Image/Мосты вечером.jpg'},
+    {qTag: 'Какой мост города имеет самый большой\n арочный пролёт?', vTag: ['Комсомольский', 'Метромост', 'Бугринский'], aTag: 2, iTag: './Image/МостыВечером.jpg'},
     {qTag: 'Когда основался Новосибирск?', vTag: ['1923', '1917', '1893'], aTag: 2, iTag: './Images/Старый.jpg'},
     {qTag: 'Как называются жители Новосибирска?', vTag: ['Новосибирцы', 'Новосибиряки', 'Новосибирякцы'], aTag: 0, iTag: './Images/Численность.jpg'},
     {qTag: 'Что проходило через Новосибирск до\n20-х годов XX века, что создавало неудобства\nдля жителей города?', vTag: ['Две железные дороги', 'Два канала', 'Два часовых пояса'], aTag: 2, iTag: './Images/Часовые пояса.jpg'},
@@ -141,35 +167,37 @@ questions = [
     {qTag: 'Какие три цвета расположились на флаге города?', vTag: ['Белый, синий, зеленый', 'Белый, синий, красный', 'Зеленый, черный, фиолетовый'], aTag: 1, iTag: './Images/flag.jpg'},
 ]
 
+save_questions = copy.deepcopy(questions)
 answers_cb = []
 answer_lbl = []
 questions_count = len(questions)
+store = JsonStore("store")
 
-
-
-
-class SavedScreen(Screen):
+class SavedResults(Screen):
+    results = StringProperty("")
     def on_enter(self, *args):
-        for i in range(store.get("count").get("count")):
-            print(i)
+        for item in store.get("results")["data"]:
+            self.results += "Количество правильных ответов: {} из {}, что составляет {}%\n".format(item['correctData'], item['questionsData'], item['percentData'])
+
+    def back(self):
+        self.manager.current = 'main screen'
 
 class ResultScreen(Screen):
 
     def on_enter(self, *args):
+        questions = copy.deepcopy(save_questions)
         percent = self.manager.screens[1].correct_count /  questions_count
         correct_count = self.manager.screens[1].correct_count
-        self.manager.screens[2].ids.resultLbl.text = "Вы ответили правильно на {} из {} вопросов,\nЭто {}%".format(correct_count, questions_count, percent)
+        self.manager.screens[2].ids.resultLbl.text = "Вы ответили правильно на {} из {} вопросов,\nЭто {}%".format(correct_count, questions_count, percent * 100)
         self.save_result(correct_count, percent)
-        Clock.schedule_once(self.to_main, 10)
         
     def save_result(self, correct_count, percent):
-        if not store.exists("count"):
-            store.put("count", count=-1)
-        count = store.get("count").get("count") + 1
-        store.put(count, correct_count_saved=correct_count, questions_count_saved=questions_count, percent_saved=percent)
-        store.put("count", count=count)
+        if not store.exists("results"):
+            store.put("results", data=[])
+        result = store.get("results")["data"] + [{"correctData": correct_count, "questionsData": questions_count, "percentData": percent}]
+        store.put("results", data= result)
 
-    def to_main(self, instance):
+    def to_main(self):
         self.manager.current = "main screen"
 
 class MainScreen(Screen):
@@ -184,19 +212,22 @@ class MainScreen(Screen):
 class TestScreen(Screen):
     current_question = DictProperty(None)
     answers_count = NumericProperty(0)
-    questions_pop = ListProperty(None)
     correct_count = NumericProperty(0)
 
     def on_enter(self, *args):
-        self.questions_pop = copy.deepcopy(questions)
+        questions.append(copy.deepcopy(save_questions))
+        self.reset()
+        self.setup()
+
+    def setup(self):
         self.answers_count += 1
         self.remove_widgets()
         self.generate_page()
         self.generate_answers(self.current_question.get(vTag))
 
     def generate_page(self):
-        self.current_question = random.choice(self.questions_pop)
-        questions.pop(self.questions_pop.index(self.current_question))
+        self.current_question = random.choice(questions)
+        questions.pop(questions.index(self.current_question))
         self.manager.screens[1].ids.number.text = 'Вопрос номер {}'.format(self.answers_count)
         self.manager.screens[1].ids.illustrate.source = self.current_question.get(iTag)
         self.manager.screens[1].ids.qLabel.text = self.current_question.get(qTag)
@@ -224,13 +255,13 @@ class TestScreen(Screen):
         self.next()
 
     def next(self):
-        if self.answers_count < questions_count:
+        if self.answers_count <  questions_count:
             Clock.schedule_once(self.next_question, 1)
         else:
             self.manager.current = 'result'
 
     def next_question(self, instance):
-        self.on_enter()
+        self.setup()
 
     def remove_widgets(self):
         for i in answer_lbl:
@@ -252,7 +283,7 @@ class MyApp(App):
         main = MainScreen()
         test = TestScreen()
         result = ResultScreen(name='result')
-        saved = SavedScreen(name = 'saved screen')
+        saved = SavedResults(name = 'saved screen')
         screen_manager.add_widget(main)
         screen_manager.add_widget(test)
         screen_manager.add_widget(result)
@@ -262,4 +293,6 @@ class MyApp(App):
 
 if __name__ == "__main__":
     app = MyApp()
+    Config.set('graphics', 'width', '500')
+    Config.set('graphics', 'height', '900')
     app.run()
