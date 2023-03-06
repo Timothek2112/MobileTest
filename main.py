@@ -5,7 +5,9 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.checkbox import CheckBox
+from kivy.storage.jsonstore import JsonStore
 from random import shuffle
+import datetime
 import random
 import copy
 from enum import Enum
@@ -13,6 +15,12 @@ from kivy.properties import DictProperty, NumericProperty, ListProperty
 
 Builder.load_string("""
 <ScreenManagement>:
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
     ResultScreen:
         correct: testScreen.correct_count
 <MainScreen>:
@@ -41,6 +49,13 @@ Builder.load_string("""
             size_hint: 1, .1
             pos_hint: {'center_x': 0.5, 'center_y': 0.2}
             on_press: root.start_test()
+
+        Button:
+            text: 'Предыдущие результаты'
+            size_hint: 1, .1
+            pos_hint: {'center_x': .5, 'center_y': .3} 
+            on_press: root.show_results()
+
 <TestScreen>:
     id: testScreen
     name: "test screen"
@@ -74,17 +89,35 @@ Builder.load_string("""
             size_hint: 1,.3
             font_size: 15   
             halign: "center"  
+
 <ResultScreen>:
+    name: "result screen"
+    canvas.before:
+        Color:
+            rgba: 1,1,1,1
+        Rectangle:
+            pos: self.pos
+            size: self.size
     FloatLayout:
         Label:
             id: resultLbl
             text:'Чел харош'
+            color: 0,0,0,1
             pos_hint: {'center_x': .5, 'center_y': .5}
             size_hint: 1, .1 
             halign: 'center'
 
-
+<SavedResults>:
+    name: "saved screen"
+    canvas.before:
+        Color:
+            rgba: 1,1,1,1
+        Rectangle:
+            pos: self.pos
+            size: self.size
 """)
+
+store = JsonStore("storage")
 
 qTag = 'question'
 vTag = 'variants'
@@ -112,11 +145,29 @@ answers_cb = []
 answer_lbl = []
 questions_count = len(questions)
 
+
+
+
+class SavedScreen(Screen):
+    def on_enter(self, *args):
+        for i in range(store.get("count").get("count")):
+            print(i)
+
 class ResultScreen(Screen):
 
     def on_enter(self, *args):
-        self.manager.screens[2].ids.resultLbl.text = "Вы ответили правильно на {} из {} вопросов,\nЭто {}%".format(self.manager.screens[1].correct_count, questions_count , self.manager.screens[1].correct_count /  questions_count)
+        percent = self.manager.screens[1].correct_count /  questions_count
+        correct_count = self.manager.screens[1].correct_count
+        self.manager.screens[2].ids.resultLbl.text = "Вы ответили правильно на {} из {} вопросов,\nЭто {}%".format(correct_count, questions_count, percent)
+        self.save_result(correct_count, percent)
         Clock.schedule_once(self.to_main, 10)
+        
+    def save_result(self, correct_count, percent):
+        if not store.exists("count"):
+            store.put("count", count=-1)
+        count = store.get("count").get("count") + 1
+        store.put(count, correct_count_saved=correct_count, questions_count_saved=questions_count, percent_saved=percent)
+        store.put("count", count=count)
 
     def to_main(self, instance):
         self.manager.current = "main screen"
@@ -125,6 +176,10 @@ class MainScreen(Screen):
     def start_test(self):
         self.manager.transition= SlideTransition(direction="right")
         self.manager.current = "test screen"
+
+    def show_results(self):
+        self.manager.transition = SlideTransition(direction="right")
+        self.manager.current = "saved screen"
 
 class TestScreen(Screen):
     current_question = DictProperty(None)
@@ -197,9 +252,11 @@ class MyApp(App):
         main = MainScreen()
         test = TestScreen()
         result = ResultScreen(name='result')
+        saved = SavedScreen(name = 'saved screen')
         screen_manager.add_widget(main)
         screen_manager.add_widget(test)
         screen_manager.add_widget(result)
+        screen_manager.add_widget(saved)
         
         return screen_manager
 
