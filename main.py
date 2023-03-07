@@ -144,7 +144,6 @@ Builder.load_string("""
 """)
 
 
-storageName = "st"
 qTag = 'question'
 vTag = 'variants'
 aTag = 'answer'
@@ -185,6 +184,7 @@ class SavedResults(Screen):
 class ResultScreen(Screen):
 
     def on_enter(self, *args):
+        global questions
         questions = copy.deepcopy(save_questions)
         percent = self.manager.screens[1].correct_count /  questions_count
         correct_count = self.manager.screens[1].correct_count
@@ -215,7 +215,7 @@ class TestScreen(Screen):
     correct_count = NumericProperty(0)
 
     def on_enter(self, *args):
-        questions.append(copy.deepcopy(save_questions))
+        questions = copy.deepcopy(save_questions)
         self.reset()
         self.setup()
 
@@ -242,6 +242,7 @@ class TestScreen(Screen):
             answer_lbl.append(lbl)
 
     def check_answer(self, instance):
+        print(len(save_questions))
         for i in range(len(answers_cb)):
             answers_cb[i].disabled = True # Блокируем все чекбоксы
             if answers_cb[i].active: # Выбранный checkbox
